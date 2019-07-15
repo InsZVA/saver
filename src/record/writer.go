@@ -10,10 +10,11 @@ import (
 const (
 	chunkHeaderSize = 7
 	blockSize       = 32 * 1024
-	chunkFull       = 1
-	chunkFirst      = 2
-	chunkMid        = 3
-	chunkLast       = 4
+	// chunk的类型
+	chunkFull  = 1
+	chunkFirst = 2
+	chunkMid   = 3
+	chunkLast  = 4
 )
 
 var (
@@ -23,7 +24,6 @@ var (
 
 // BaseWriter 最基础的记录写入工具
 type BaseWriter struct {
-	curPath string
 	curFile *os.File
 	buf     [blockSize]byte
 	j       int
@@ -63,13 +63,16 @@ func (writer *BaseWriter) write(b []byte) (n int, err error) {
 				return c, err
 			}
 			if length-c > blockSize {
+				// 插入一个Mid
 				writer.writeHead(checkSum, uint16(length), chunkMid)
 			} else {
+				// 只需要一个Last即可
 				writer.writeHead(checkSum, uint16(length), chunkLast)
 			}
 			lastC = copy(writer.buf[writer.j+7:], b[c:])
 			c += lastC
 			if length-c > 0 {
+				// 写入Last
 				err = writer.flush()
 				if err != nil {
 					return c, err
@@ -95,6 +98,7 @@ func (writer *BaseWriter) write(b []byte) (n int, err error) {
 	return c, nil
 }
 
+// 将buff中的数据写入磁盘
 func (writer *BaseWriter) flush() error {
 	n, err := writer.curFile.Write(writer.buf[:])
 	if err != nil {
