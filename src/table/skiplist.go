@@ -16,6 +16,10 @@ type Key struct {
 	// TODO: MVCC支持
 }
 
+func (key Key) Key() []byte {
+	return key.key
+}
+
 func NewKey(k []byte) Key {
 	return Key{k}
 }
@@ -55,6 +59,22 @@ func (node *SkipListNode) String() string {
 	return fmt.Sprintf("Node{key:%v,val:%v}", node.key.key, node.val)
 }
 
+func (node *SkipListNode) Key() Key {
+	return node.key
+}
+
+func (node *SkipListNode) Val() []byte {
+	return node.val
+}
+
+func (node *SkipListNode) Prev() *SkipListNode {
+	return node.prev
+}
+
+func (node *SkipListNode) Next() *SkipListNode {
+	return node.next
+}
+
 type SkipList struct {
 	start [maxLevel]*SkipListNode
 	end   [maxLevel]*SkipListNode
@@ -74,6 +94,14 @@ func NewSkipList() *SkipList {
 		}
 	}
 	return ret
+}
+
+func (list *SkipList) First() *SkipListNode {
+	return list.start[0]
+}
+
+func (list *SkipList) End() *SkipListNode {
+	return list.end[0]
 }
 
 func (list *SkipList) String() string {
@@ -162,4 +190,8 @@ func (list *SkipList) insert(key Key, val []byte) {
 	}
 
 	return
+}
+
+func (list *SkipList) Set(key Key, val []byte) {
+	list.insert(key, val)
 }
