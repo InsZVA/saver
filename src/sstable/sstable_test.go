@@ -24,4 +24,17 @@ func TestSSTable(t *testing.T) {
 		t.Error(err)
 	}
 	sst.Close()
+
+	sst, err = OpenSSTable("/tmp/sst0")
+	if err != nil {
+		t.Error(err)
+	}
+	reader := sst.NewReader()
+	i, err := reader.Find(table.NewKey([]byte("a")))
+	if err != nil {
+		t.Error(err)
+	}
+	t.Log(i.Next())
+	t.Log(i.key.Key(), i.val)
+
 }
