@@ -1,5 +1,7 @@
 # 简易存储引擎
 
+[![codecov](https://codecov.io/gh/InsZVA/saver/branch/master/graph/badge.svg)](https://codecov.io/gh/InsZVA/saver)
+
 LSM树解决方案
 使用2-Chunk作为日志存储
 SkipList作为内存表
@@ -26,12 +28,12 @@ L1 -kv->-kv->-kv->-kv->kv->
 SSTable结构:
 ```
 +---------+
-|val...val|   按键增顺序的值
+|kv...kv..|   按键增顺序的值
 +---------+
-|...val...|
+|kv...kv..|
 +---------+
-|key...key|   MetaData使用递增键，
+|kidx.....|   MetaData使用递增键，
 +---------+
-|...key...|   方便二分查找
+|..keyidx.|   方便二分查找
 +---------+
 ```
