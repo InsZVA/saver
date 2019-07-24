@@ -1,8 +1,9 @@
 package sstable
 
 import (
-	"table"
 	"testing"
+
+	"github.com/InsZVA/saver/table"
 )
 
 func NewTestSkipList() *table.SkipList {
@@ -30,7 +31,7 @@ func TestSSTable(t *testing.T) {
 		t.Error(err)
 	}
 	reader := sst.NewReader()
-	i, err := reader.Find(table.NewKey([]byte("a")))
+	i, err := reader.Find(table.NewKey([]byte("c")))
 	if err != nil {
 		t.Error(err)
 	}

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-export GOPATH=`pwd`
+
 set -e
 echo "" > coverage.txt
 

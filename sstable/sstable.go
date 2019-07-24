@@ -7,7 +7,8 @@ import (
 	"log"
 	"os"
 	"sort"
-	"table"
+
+	"github.com/InsZVA/saver/table"
 )
 
 type SeqFile interface {
