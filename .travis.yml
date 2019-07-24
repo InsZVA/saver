@@ -5,7 +5,7 @@ go:
   - tip
 
 before_install:
-  - GOPATH=`pwd` go get -t -v ./...
+  - echo "install"
 
 script:
   - ./test.sh
