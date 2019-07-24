@@ -1,6 +1,7 @@
 # 简易存储引擎
 
 [![codecov](https://codecov.io/gh/InsZVA/saver/branch/master/graph/badge.svg)](https://codecov.io/gh/InsZVA/saver)
+[![build](https://travis-ci.org/InsZVA/saver/settings#)](https://travis-ci.org/InsZVA/saver)
 
 LSM树解决方案
 使用2-Chunk作为日志存储
