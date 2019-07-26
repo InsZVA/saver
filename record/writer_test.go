@@ -3,6 +3,7 @@ package record
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"hash/crc32"
 	"io/ioutil"
 	"math/rand"
@@ -12,8 +13,8 @@ import (
 	"time"
 )
 
-func newTestWriter(t *testing.T) *BaseWriter {
-	f, err := os.Create("/tmp/record")
+func newTestWriter(t *testing.T, subfix string) *BaseWriter {
+	f, err := os.Create(fmt.Sprintf("/tmp/record_" + subfix))
 	if err != nil {
 		t.Error(err)
 	}
@@ -25,12 +26,11 @@ func newTestWriter(t *testing.T) *BaseWriter {
 }
 
 func randomSlice(maxLength int) []byte {
-	length := rand.Intn(maxLength)
-	sed := make([]byte, 0, 32)
-	for i := 0; i < length && i < 32; i++ {
-		sed = append(sed, byte('a'+byte(i)))
+	ret := make([]byte, 0, maxLength)
+	for i := 0; i < maxLength; i++ {
+		ret = append(ret, 'a'+byte(rand.Intn(26)))
 	}
-	return repeatSlice(sed, length/32)
+	return ret
 }
 
 func repeatSlice(sed []byte, times int) []byte {
@@ -44,7 +44,7 @@ func expect(t *testing.T, expect interface{}, real interface{}) {
 }
 
 func Test_BaseWriter_writeHead(t *testing.T) {
-	writer := newTestWriter(t)
+	writer := newTestWriter(t, "writeHead")
 	writer.writeHead(uint32(0x8f71d34f), uint16(23), chunkFirst)
 	err := writer.flush()
 	if err != nil {
@@ -52,7 +52,7 @@ func Test_BaseWriter_writeHead(t *testing.T) {
 	}
 	writer.curFile.Close()
 
-	data, err := ioutil.ReadFile("/tmp/record")
+	data, err := ioutil.ReadFile("/tmp/record_writeHead")
 	if err != nil {
 		t.Error(err)
 	}
@@ -139,7 +139,7 @@ func checkData(data []byte, d []byte, i int, t *testing.T) int {
 }
 
 func Test_BaseWriter_write(t *testing.T) {
-	writer := newTestWriter(t)
+	writer := newTestWriter(t, "write")
 	// 简单测试
 	data1 := repeatSlice([]byte("abc"), 1)
 	writer.write(data1)
@@ -205,7 +205,7 @@ func BenchmarkFile(b *testing.B) {
 	}
 
 	start := time.Now().UnixNano()
-	writer := newTestWriter(nil)
+	writer := newTestWriter(nil, "benchmark")
 	for _, data := range datas {
 		writer.write(data)
 	}

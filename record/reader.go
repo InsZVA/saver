@@ -3,6 +3,7 @@ package record
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"hash/crc32"
 	"io"
 )
@@ -27,47 +28,57 @@ type BaseReader struct {
 }
 
 func (reader *BaseReader) nextBlock() error {
+	fmt.Println("next block:")
 	n, err := reader.reader.Read(reader.buf[:])
 	reader.n = n
 	reader.err = err
+	reader.s = 0
+	reader.j = 0
 	return err
 }
 
 func (reader *BaseReader) Recover() error {
 	// TODO
-	return nil
+	return reader.err
 }
 
-func (reader *BaseReader) NextChunk() error {
+// expectNum为期望这个chunk的内容大小，expectNum>=blockSize表示尽可能多的读取（在读取full和mid时候）
+func (reader *BaseReader) NextChunk(expectNum int) error {
 	if reader.j+chunkHeaderSize > blockSize {
 		// 跳到下一个Block继续读
 		err := reader.nextBlock()
 		if err != nil && err != io.EOF {
 			return err
 		}
-		return reader.NextChunk()
+		return reader.NextChunk(expectNum)
 	}
+	fmt.Println(reader.j, reader.buf)
 	checkSum := uint32(binary.LittleEndian.Uint32(reader.buf[reader.j:]))
 	length := int(binary.LittleEndian.Uint16(reader.buf[reader.j+4:]))
 
+	fmt.Println("find chunk: length", length)
+
 	chunkType := reader.buf[reader.j+6]
 	// TODO: blockSize -> n
-	if reader.j+length+chunkHeaderSize > blockSize {
-		reader.err = errors.New("长度超过了当前BLOCK，但是被标记为chunkFull")
-		return reader.Recover()
+
+	reader.s = reader.j + chunkHeaderSize
+	if length < expectNum {
+		expectNum = length
+	}
+	reader.j = reader.s + expectNum
+	if reader.j > blockSize {
+		reader.j = blockSize
 	}
 	reader.header.checkSum = checkSum
 	reader.header.chunkType = chunkType
 	reader.header.length = uint16(length)
 
-	reader.s = reader.j + chunkHeaderSize
-	reader.j = reader.s + length
 	return nil
 }
 
 func (reader *BaseReader) ReadRecord() ([]byte, error) {
 	cur_data := make([]byte, 0)
-	err := reader.NextChunk()
+	err := reader.NextChunk(blockSize)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +88,7 @@ func (reader *BaseReader) ReadRecord() ([]byte, error) {
 		if len(cur_data) >= int(reader.header.length) {
 			return nil, errors.New("chunk不需要分裂，但是出现了chunkFirst")
 		}
-		err = reader.NextChunk()
+		err = reader.NextChunk(int(reader.header.length) - len(cur_data))
 		if err != nil {
 			return nil, err
 		}
@@ -86,7 +97,7 @@ func (reader *BaseReader) ReadRecord() ([]byte, error) {
 			if len(cur_data) >= int(reader.header.length) {
 				return nil, errors.New("chunk不需要分裂，但是出现了chunkMid")
 			}
-			err = reader.NextChunk()
+			err = reader.NextChunk(int(reader.header.length) - len(cur_data))
 			if err != nil {
 				return nil, err
 			}

@@ -9,7 +9,7 @@ import (
 
 const (
 	chunkHeaderSize = 7
-	blockSize       = 32 * 1024
+	blockSize       = 128
 	// chunk的类型
 	chunkFull  = 1
 	chunkFirst = 2
