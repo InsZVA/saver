@@ -11,6 +11,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/InsZVA/saver/util"
 )
 
 func newTestWriter(t *testing.T, subfix string) *BaseWriter {
@@ -23,14 +25,6 @@ func newTestWriter(t *testing.T, subfix string) *BaseWriter {
 		curFile: f,
 	}
 	return writer
-}
-
-func randomSlice(maxLength int) []byte {
-	ret := make([]byte, 0, maxLength)
-	for i := 0; i < maxLength; i++ {
-		ret = append(ret, 'a'+byte(rand.Intn(26)))
-	}
-	return ret
 }
 
 func repeatSlice(sed []byte, times int) []byte {
@@ -78,6 +72,17 @@ func checkData(data []byte, d []byte, i int, t *testing.T) int {
 	t.Log("length:", length)
 	rawLength := len(data)
 	first := true
+	if len(data) == 0 {
+		expect(t, binary.LittleEndian.Uint32(d[i:]), checkSum)
+		expect(t, length, rawLength)
+		chunkType := d[i+6]
+		t.Logf("Find chunk: %s", chunkTypes[chunkType])
+		if chunkType == chunkFull {
+			i += chunkHeaderSize
+		} else {
+			t.Errorf("空数据，但是不是chunkFull")
+		}
+	}
 	for len(data) != 0 {
 		expect(t, binary.LittleEndian.Uint32(d[i:]), checkSum)
 		expect(t, length, rawLength)
@@ -118,14 +123,14 @@ func checkData(data []byte, d []byte, i int, t *testing.T) int {
 			expect(t, data[:blockSize-chunkHeaderSize], d[i+chunkHeaderSize:nextBlock])
 			i = nextBlock
 			nextBlock += blockSize
-			data = data[blockSize:]
+			data = data[blockSize-chunkHeaderSize:]
 			continue
 		} else if chunkType == chunkLast {
 			if first {
 				t.Errorf("没有FIRST的情况下出现了LAST")
 			}
 			if i+len(data)+chunkHeaderSize > nextBlock {
-				t.Errorf("剩余长度不足以在LAST写完")
+				t.Errorf("剩余长度不足以在LAST写完 len(data):%d i:%d nextBlock:%d", len(data), i, nextBlock)
 			}
 			expect(t, data[:], d[i+chunkHeaderSize:i+chunkHeaderSize+len(data)])
 			i += chunkHeaderSize + len(data)
@@ -175,7 +180,7 @@ func Test_BaseWriter_write(t *testing.T) {
 	}
 
 	idx := 0
-	d, err := ioutil.ReadFile("/tmp/record")
+	d, err := ioutil.ReadFile("/tmp/record_write")
 	if err != nil {
 		t.Error(err)
 	}
@@ -192,6 +197,24 @@ func Test_BaseWriter_write(t *testing.T) {
 	t.Log(idx)
 	idx = checkData(data6, d, idx, t)
 	t.Log(idx)
+
+	writer = newTestWriter(t, "write_batch")
+	// 插入大量随机数据测试
+	datas := [][]byte{}
+	for i := 0; i < 1000; i++ {
+		datas = append(datas, util.RandomSlice(rand.Intn(int(blockSize+blockSize/2))))
+		writer.write(datas[i])
+	}
+	writer.flush()
+	d, err = ioutil.ReadFile("/tmp/record_write_batch")
+	if err != nil {
+		t.Error(err)
+	}
+	idx = 0
+	for i := 0; i < 1000; i++ {
+		t.Log("batch check:", idx)
+		idx = checkData(datas[i], d, idx, t)
+	}
 }
 
 func BenchmarkFile(b *testing.B) {
@@ -199,7 +222,7 @@ func BenchmarkFile(b *testing.B) {
 	datas := [][]byte{}
 	length := 0
 	for length < size*1024*1024 {
-		data := randomSlice(256)
+		data := util.RandomSlice(256)
 		datas = append(datas, data)
 		length += len(data)
 	}

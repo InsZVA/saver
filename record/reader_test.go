@@ -1,8 +1,11 @@
 package record
 
 import (
+	"math/rand"
 	"os"
 	"testing"
+
+	"github.com/InsZVA/saver/util"
 )
 
 func newTestReader(t *testing.T, subfix string) *BaseReader {
@@ -25,10 +28,10 @@ func TestBaseReadRecord(t *testing.T) {
 	writer := newTestWriter(t, "read")
 	rawData := [][]byte{
 		[]byte("Hello, world"),
-		randomSlice(blockSize + 1),
-		randomSlice(blockSize - 1),
-		randomSlice(blockSize / 2),
-		randomSlice(75),
+		util.RandomSlice(blockSize + 1),
+		util.RandomSlice(blockSize - 1),
+		util.RandomSlice(blockSize / 2),
+		util.RandomSlice(75),
 	}
 	for _, raw := range rawData {
 		writer.write(raw)
@@ -46,5 +49,23 @@ func TestBaseReadRecord(t *testing.T) {
 		t.Log(string(data))
 	}
 
-	// 测试错误的case
+	// TODO: 测试错误的case
+
+	// 测试大量数据
+	writer = newTestWriter(t, "read_batch")
+	// 插入大量随机数据测试
+	datas := [][]byte{}
+	for i := 0; i < 1000; i++ {
+		datas = append(datas, util.RandomSlice(rand.Intn(int(blockSize+blockSize/2))))
+		writer.write(datas[i])
+	}
+	writer.flush()
+	reader = newTestReader(t, "read_batch")
+	for i := 0; i < 1000; i++ {
+		data, err := reader.ReadRecord()
+		if err != nil {
+			t.Error(err)
+		}
+		expect(t, datas[i], data)
+	}
 }

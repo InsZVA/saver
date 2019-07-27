@@ -47,7 +47,7 @@ func (writer *BaseWriter) write(b []byte) (n int, err error) {
 		return 0, errTooMuchData
 	}
 	checkSum := crc32.ChecksumIEEE(b)
-	var c int
+	var c int // 已写入的数量
 	if writer.j+chunkHeaderSize <= blockSize {
 		binary.LittleEndian.PutUint32(writer.buf[writer.j:], checkSum)
 		binary.LittleEndian.PutUint16(writer.buf[writer.j+4:], uint16(length))
@@ -62,7 +62,7 @@ func (writer *BaseWriter) write(b []byte) (n int, err error) {
 			if err != nil {
 				return c, err
 			}
-			if length-c > blockSize {
+			if length-c+chunkHeaderSize > blockSize {
 				// 插入一个Mid
 				writer.writeHead(checkSum, uint16(length), chunkMid)
 			} else {
