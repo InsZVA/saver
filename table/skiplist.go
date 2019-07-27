@@ -1,6 +1,7 @@
 package table
 
 import (
+	"bytes"
 	"fmt"
 	"math/rand"
 	"strings"
@@ -25,23 +26,7 @@ func NewKey(k []byte) Key {
 }
 
 func (key Key) Cmp(key2 Key) int {
-	if key.key == nil && key2.key == nil {
-		return 0
-	}
-	if key.key == nil || len(key.key) < len(key2.key) {
-		return -1
-	}
-	if key2.key == nil || len(key.key) > len(key2.key) {
-		return 1
-	}
-	for i := 0; i < len(key.key); i++ {
-		if key.key[i] > key2.key[i] {
-			return 1
-		} else if key.key[i] < key2.key[i] {
-			return -1
-		}
-	}
-	return 0
+	return bytes.Compare(key.key, key2.key)
 }
 
 type SkipListNode struct {
