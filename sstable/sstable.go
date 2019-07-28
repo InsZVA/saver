@@ -147,15 +147,22 @@ type SSTReader struct {
 }
 
 func (reader *SSTReader) ReadAt(data []byte, offset int64) (int, error) {
-	log.Printf("ReadAt: offset %d, reader.start: %d, reader.length: %d\n", offset, reader.start, reader.length)
-	if reader.start <= uint64(offset) && uint64(offset)+uint64(len(data)) <= reader.length {
-		return copy(data, reader.buff[offset-int64(reader.start):int(offset)+len(data)]), nil
+	//log.Printf("ReadAt: offset %d, reader.start: %d, reader.length: %d\n", offset, reader.start, reader.length)
+	if reader.start <= uint64(offset) && uint64(offset)+uint64(len(data)) <= reader.start+reader.length {
+		return copy(data, reader.buff[offset-int64(reader.start):int(offset)-int(reader.start)+len(data)]), nil
 	}
-	n, err := reader.sst.file.ReadAt(reader.buff[:], int64(offset&blockSize))
+
+	if reader.start <= uint64(offset) && uint64(offset) < reader.start+reader.length && uint64(offset)+uint64(len(data)) > reader.start+reader.length {
+		n := copy(data, reader.buff[offset-int64(reader.start):offset-int64(reader.start)+int64(reader.length)])
+		data = data[n:]
+		offset += int64(n)
+	}
+	log.Println(offset, offset-offset%blockSize)
+	n, err := reader.sst.file.ReadAt(reader.buff[:], int64(offset-offset%blockSize))
 	if err != nil {
 		return 0, err
 	}
-	reader.start = uint64(offset & blockSize)
+	reader.start = uint64(offset - offset%blockSize)
 	reader.length = uint64(n)
 	return reader.ReadAt(data, offset)
 }
