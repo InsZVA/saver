@@ -86,57 +86,79 @@ func (sst *SSTable) Close() error {
 [metalength64..]
 ...
 */
+type Writer struct {
+	sst     *SSTable
+	md      []uint64
+	idx     uint64
+	buff    [blockSize]byte
+	written uint64
+}
 
-// 从一个内存表直接写入SSTable（L0）
-func (sst *SSTable) FromMemTable(list *table.SkipList) error {
+func (sst *SSTable) NewWriter() *Writer {
 	sst.file.Seek(0, io.SeekStart)
-	first := list.First()
-	end := list.End()
-	buff := make([]byte, blockSize)
-	idx := uint64(0)
-	written := uint64(0)
-	md := make([]uint64, 0)
-	for p := first.Next(); p != end; p = p.Next() {
-		if int(idx)+len(p.Key().Key())+len(p.Val())+8 >= blockSize {
-			_, err := sst.file.Write(buff)
-			if err != nil {
-				return err
-			}
-			written += blockSize
-			idx = 0
-		}
-		md = append(md, written+idx)
-		key := p.Key().Key()
-		binary.LittleEndian.PutUint32(buff[idx:], uint32(len(key)))
-		idx += 4
-		idx += uint64(copy(buff[idx:], key))
-		val := p.Val()
-		binary.LittleEndian.PutUint32(buff[idx:], uint32(len(val)))
-		idx += 4
-		idx += uint64(copy(buff[idx:], val))
+	return &Writer{
+		sst: sst,
+		md:  make([]uint64, 0),
 	}
-	metaLength := uint64(len(md)*8 + 8)
-	if idx+metaLength >= blockSize {
-		_, err := sst.file.Write(buff)
-		if err != nil {
+}
+
+func (writer *Writer) Flush() error {
+	_, err := writer.sst.file.Write(writer.buff[:])
+	if err != nil {
+		return err
+	}
+	writer.written += blockSize
+	writer.idx = 0
+	return nil
+}
+
+func (writer *Writer) Write(key table.Key, val []byte) error {
+	if int(writer.idx)+len(key.Key())+len(val) >= blockSize {
+		if err := writer.Flush(); err != nil {
 			return err
 		}
-		written += blockSize
-		idx = 0
+	}
+	writer.md = append(writer.md, writer.written+writer.idx)
+	binary.LittleEndian.PutUint32(writer.buff[writer.idx:], uint32(len(key.Key())))
+	writer.idx += 4
+	writer.idx += uint64(copy(writer.buff[writer.idx:], key.Key()))
+	binary.LittleEndian.PutUint32(writer.buff[writer.idx:], uint32(len(val)))
+	writer.idx += 4
+	writer.idx += uint64(copy(writer.buff[writer.idx:], val))
+	return nil
+}
+
+func (writer *Writer) Done() error {
+	metaLength := uint64(len(writer.md)*8 + 8)
+	if writer.idx+metaLength >= blockSize {
+		if err := writer.Flush(); err != nil {
+			return err
+		}
 	}
 	// 写入metadata
-	idx = blockSize - metaLength
-	for _, offset := range md {
-		binary.LittleEndian.PutUint64(buff[idx:], offset)
-		idx += 8
+	writer.idx = blockSize - metaLength
+	for _, offset := range writer.md {
+		binary.LittleEndian.PutUint64(writer.buff[writer.idx:], offset)
+		writer.idx += 8
 	}
 	// 写入metadata长度
-	binary.LittleEndian.PutUint64(buff[blockSize-8:], uint64(len(md)*8)+8)
-	_, err := sst.file.Write(buff)
+	binary.LittleEndian.PutUint64(writer.buff[blockSize-8:], uint64(len(writer.md)*8)+8)
+	_, err := writer.sst.file.Write(writer.buff[:])
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+// 从一个内存表直接写入SSTable（L0）
+func (sst *SSTable) FromMemTable(list *table.SkipList) error {
+	writer := sst.NewWriter()
+	for p := list.First().Next(); p != list.End(); p = p.Next() {
+		if err := writer.Write(p.Key(), p.Val()); err != nil {
+			return err
+		}
+	}
+	return writer.Done()
 }
 
 type SSTReader struct {
