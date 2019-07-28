@@ -33,19 +33,34 @@ func TestSSTable(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	reader := sst.NewReader()
-	i, err := reader.Find(table.NewKey([]byte("c")))
+	reader, err := sst.NewReader()
+	if err != nil {
+		t.Error(err)
+	}
+	i, err := reader.Find(table.NewKey([]byte("b")))
 	if err != nil {
 		t.Error(err)
 	}
 	if !i.Next() {
 		t.Error("没有找到c")
 	}
-	if !bytes.Equal(i.key.Key(), []byte("c")) {
+	if !bytes.Equal(i.key.Key(), []byte("b")) {
 		t.Error("找到的key错误")
 	}
-	if !bytes.Equal(i.val, []byte{3}) {
+	if !bytes.Equal(i.val, []byte{2}) {
 		t.Error("找到的val错误")
+	}
+	if !i.Next() {
+		t.Error("b之后的c没有next读到")
+	}
+	if !bytes.Equal(i.key.Key(), []byte("c")) {
+		t.Error("next找到的key错误")
+	}
+	if !bytes.Equal(i.val, []byte{3}) {
+		t.Error("next找到的val错误")
+	}
+	if i.Next() {
+		t.Error("c后还有next")
 	}
 
 	// 大量插入和查询测试
@@ -70,7 +85,10 @@ func TestSSTable(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	reader = sst.NewReader()
+	reader, err = sst.NewReader()
+	if err != nil {
+		t.Error(err)
+	}
 	// 随机查询
 	for j := 0; j < 1000; j++ {
 		idx := rand.Intn(1000)

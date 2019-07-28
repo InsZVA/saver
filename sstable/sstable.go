@@ -144,6 +144,7 @@ type SSTReader struct {
 	buff [blockSize]byte
 	// buff的开始位置和长度
 	start, length uint64
+	meta          MetaData
 }
 
 func (reader *SSTReader) ReadAt(data []byte, offset int64) (int, error) {
@@ -157,7 +158,6 @@ func (reader *SSTReader) ReadAt(data []byte, offset int64) (int, error) {
 		data = data[n:]
 		offset += int64(n)
 	}
-	log.Println(offset, offset-offset%blockSize)
 	n, err := reader.sst.file.ReadAt(reader.buff[:], int64(offset-offset%blockSize))
 	if err != nil {
 		return 0, err
@@ -178,6 +178,9 @@ type Iterator struct {
 }
 
 func (i *Iterator) Next() bool {
+	if i.offset > i.reader.meta.KeyIdx[len(i.reader.meta.KeyIdx)-1] {
+		return false
+	}
 	keyLength := make([]byte, 4)
 	n, err := i.reader.ReadAt(keyLength, int64(i.offset))
 	if err != nil {
@@ -209,7 +212,6 @@ func (i *Iterator) Next() bool {
 	k := table.NewKey(keySlice)
 	i.key = &k
 	i.val = valSlice
-	// TODO: if has next
 	return true
 }
 
@@ -217,15 +219,20 @@ func (reader *SSTReader) ReadItem(offset uint64) *Iterator {
 	return &Iterator{reader: reader, offset: offset}
 }
 
-func (reader *SSTReader) Find(key table.Key) (*Iterator, error) {
-	// TODO: 优化metadata的缓存
+type MetaData struct {
+	MetaStart uint64
+	KeyNum    int
+	KeyIdx    []uint64
+}
+
+func (reader *SSTReader) readMeta() error {
 	metaLength := make([]byte, 8)
 	n, err := reader.ReadAt(metaLength, reader.sst.file.Size()-8)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if n != 8 {
-		return nil, brokenFileErr
+		return brokenFileErr
 	}
 	length := binary.LittleEndian.Uint64(metaLength)
 	log.Printf("metalength: %d\n", length)
@@ -236,11 +243,18 @@ func (reader *SSTReader) Find(key table.Key) (*Iterator, error) {
 	for i := 0; i < num; i++ {
 		_, err = reader.ReadAt(buff, int64(int64(i*8)+metaStart))
 		if err != nil {
-			return nil, err
+			return err
 		}
 		md = append(md, binary.LittleEndian.Uint64(buff))
 	}
-	log.Printf("metadata: %d %v\n", len(md), md)
+	reader.meta.KeyIdx = md
+	reader.meta.KeyNum = num
+	reader.meta.MetaStart = uint64(metaStart)
+	return nil
+}
+
+func (reader *SSTReader) Find(key table.Key) (*Iterator, error) {
+	num, md := reader.meta.KeyNum, reader.meta.KeyIdx
 
 	found := sort.Search(num, func(i int) bool {
 		it := reader.ReadItem(md[i])
@@ -252,8 +266,9 @@ func (reader *SSTReader) Find(key table.Key) (*Iterator, error) {
 	return reader.ReadItem(md[found]), nil
 }
 
-func (sst *SSTable) NewReader() *SSTReader {
-	return &SSTReader{
+func (sst *SSTable) NewReader() (*SSTReader, error) {
+	reader := &SSTReader{
 		sst: sst,
 	}
+	return reader, reader.readMeta()
 }
